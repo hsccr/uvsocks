@@ -378,11 +378,13 @@ uvsocks_remove_session (UvSocksTunnel  *tunnel,
 
   if (session->socks.read_tcp &&
       !uv_is_closing ((const uv_handle_t *)session->socks.read_tcp))
-    uv_close ((uv_handle_t *) session->socks.read_tcp, uvsocks_free_handle_with_session);
+    uv_close ((uv_handle_t *) session->socks.read_tcp,
+              uvsocks_free_handle_with_session);
 
   if (session->local.read_tcp &&
       !uv_is_closing ((const uv_handle_t *)session->local.read_tcp))
-    uv_close ((uv_handle_t *) session->local.read_tcp, uvsocks_free_handle_with_session);
+    uv_close ((uv_handle_t *) session->local.read_tcp,
+              uvsocks_free_handle_with_session);
 }
 
 static void
@@ -653,8 +655,8 @@ uvsocks_read_start_after_free_packet (uv_write_t *req,
   link->read_buf_len = 0;
   if (link->read_tcp)
     uv_read_start ((uv_stream_t *) link->read_tcp,
-                                   uvsocks_alloc_buffer,
-                                   uvsocks_read);
+                   uvsocks_alloc_buffer,
+                   uvsocks_read);
 }
 
 static void
@@ -765,15 +767,15 @@ uvsocks_read (uv_stream_t    *stream,
                 if (tunnel->param.is_forward)
                   {
                     uv_ip4_addr (tunnel->param.destination_host,
-                                  tunnel->param.destination_port,
-                                &addr);
+                                 tunnel->param.destination_port,
+                                 &addr);
                     port = htons (tunnel->param.destination_port);
                   }
                 else
                   {
                     uv_ip4_addr (tunnel->param.listen_host,
-                                  tunnel->param.listen_port,
-                                &addr);
+                                 tunnel->param.listen_port,
+                                 &addr);
                     port = htons (tunnel->param.listen_port);
                   }
                 memcpy (&buf[buf_size], &addr.sin_addr.s_addr, 4);
@@ -818,7 +820,9 @@ uvsocks_read (uv_stream_t    *stream,
                 memcpy (&port, &data[8], 2);
                 port = htons(port);
 
-                strlcpy (tunnel->param.listen_host, uvsocks->host, sizeof (tunnel->param.listen_host));
+                strlcpy (tunnel->param.listen_host,
+                         uvsocks->host,
+                         sizeof (tunnel->param.listen_host));
                 tunnel->param.listen_port = port;
 
                 uvsocks_set_status (tunnel, UVSOCKS_OK_SOCKS_BIND);
@@ -831,10 +835,10 @@ uvsocks_read (uv_stream_t    *stream,
                 tunnel->param.is_forward == 0)
               {
                 uvsocks_dns_resolve (uvsocks,
-                                      tunnel->param.destination_host,
-                                      tunnel->param.destination_port,
-                                      uvsocks_connect_real,
-                                      &session->local);
+                                     tunnel->param.destination_host,
+                                     tunnel->param.destination_port,
+                                     uvsocks_connect_real,
+                                     &session->local);
                 break;
               }
 
@@ -842,8 +846,8 @@ uvsocks_read (uv_stream_t    *stream,
 
             uvsocks_session_set_stage (session, UVSOCKS_STAGE_TUNNEL);
             if (uv_read_start ((uv_stream_t *) session->local.read_tcp,
-                                uvsocks_alloc_buffer,
-                                uvsocks_read))
+                               uvsocks_alloc_buffer,
+                               uvsocks_read))
               {
                 uvsocks_set_status (tunnel, UVSOCKS_ERROR_TCP_READ_START);
                 uvsocks_remove_session (tunnel, session);
@@ -969,7 +973,8 @@ uvsocks_local_new_connection (uv_stream_t *stream,
       uvsocks_set_status (tunnel, UVSOCKS_ERROR_TCP_ACCEPT);
 
       if (session->local.read_tcp)
-        uv_close ((uv_handle_t *) session->local.read_tcp, uvsocks_free_handle_with_session);
+        uv_close ((uv_handle_t *) session->local.read_tcp,
+                  uvsocks_free_handle_with_session);
       return;
     }
 
