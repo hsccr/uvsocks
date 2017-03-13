@@ -119,7 +119,7 @@ struct _UvSocksSessionLink
 
 struct _UvSocksSession
 {
-  int                    use;
+  int                    id;
   UvSocksTunnel         *tunnel;
   UvSocksStage           stage;
   UvSocksSessionLink     socks;
@@ -132,7 +132,7 @@ struct _UvSocksTunnel
   UvSocksParam           param;
   uv_tcp_t              *listen_tcp;
   int                    n_sessions;
-  UvSocksSession         sessions[UVSOCKS_SESSION_MAX];
+  UvSocksSession        *sessions[UVSOCKS_SESSION_MAX];
 };
 
 struct _UvSocks
@@ -354,12 +354,14 @@ uvsocks_free_handle_with_session (uv_handle_t *handle)
   free (handle);
   link->read_tcp = NULL;
 
-  if (!session->socks.read_tcp && !session->local.read_tcp)
+  if (!session->local.read_tcp &&
+      !session->socks.read_tcp)
     {
       UvSocksTunnel  *tunnel = session->tunnel;
 
       tunnel->n_sessions--;
-      session->use = 0;
+      tunnel->sessions[session->id] = NULL;
+      free (session);
     }
 }
 
@@ -404,7 +406,7 @@ uvsocks_free_tunnel (UvSocks *uvsocks)
 
       for (s = 0; s < uvsocks->tunnels[t].n_sessions; s++)
         uvsocks_remove_session (&uvsocks->tunnels[t],
-                                &uvsocks->tunnels[t].sessions[s]);
+                                uvsocks->tunnels[t].sessions[s]);
     }
 }
 
@@ -907,7 +909,7 @@ uvsocks_create_session (UvSocksTunnel  *tunnel)
     int s;
 
     for (s = 0; s < UVSOCKS_SESSION_MAX; s++)
-      if (tunnel->sessions[s].use == 0)
+      if (tunnel->sessions[s] == NULL)
         {
           id = s;
           break;
@@ -919,8 +921,10 @@ uvsocks_create_session (UvSocksTunnel  *tunnel)
     return NULL;
 
   tunnel->n_sessions++;
+  session = calloc (sizeof (UvSocksSession), 1);
+  if (!session)
+    return NULL;
 
-  session = &tunnel->sessions[id];
   session->local.read_buf_len = 0;
   session->local.session = session;
   session->local.write_link = &session->socks;
@@ -930,7 +934,8 @@ uvsocks_create_session (UvSocksTunnel  *tunnel)
   session->socks.write_link = &session->local;
 
   session->tunnel = tunnel;
-  session->use = 1;
+  session->id = id;
+  tunnel->sessions[session->id] = session;
 
   uvsocks_session_set_stage (session, UVSOCKS_STAGE_NONE);
 
