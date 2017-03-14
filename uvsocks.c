@@ -372,8 +372,7 @@ static void
 uvsocks_quit (UvSocks  *uvsocks,
               void     *data)
 {
-  if (uvsocks->self_loop)
-    uv_stop (uvsocks->loop);
+  uv_stop (uvsocks->loop);
 }
 
 static void
