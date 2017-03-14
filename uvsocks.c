@@ -279,11 +279,11 @@ uvsocks_new (void              *uv_loop,
     }
 
   if (!uv_loop)
-  {
-    uvsocks->self_loop = 1;
-    uvsocks->loop = malloc (sizeof (*uvsocks->loop));
-    uv_loop_init (uvsocks->loop);
-  }
+    {
+      uvsocks->self_loop = 1;
+      uvsocks->loop = malloc (sizeof (*uvsocks->loop));
+      uv_loop_init (uvsocks->loop);
+    }
   else
     uvsocks->loop = uv_loop;
 
