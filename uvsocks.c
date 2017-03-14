@@ -152,6 +152,8 @@ struct _UvSocks
 
   UvSocksStatusFunc      callback_func;
   void                  *callback_data;
+  int                    close_cb_called;
+  int                    exit;
 };
 
 typedef void (*UvSocksFunc) (UvSocks *uvsocks,
@@ -346,10 +348,47 @@ uvsocks_alloc_buffer (uv_handle_t *handle,
 }
 
 static void
+uvsocks_quit (UvSocks  *uvsocks,
+              void     *data)
+{
+  if (uvsocks->self_loop)
+    uv_stop (uvsocks->loop);
+}
+
+static void
+uvsocks_free_real (UvSocks *uvsocks)
+{
+  if (uvsocks->exit == 0)
+    return;
+
+  uvsocks->close_cb_called--;
+  if (uvsocks->close_cb_called > 0)
+    return;
+
+  if (uvsocks->self_loop)
+    {
+      uvsocks_send_async (uvsocks, uvsocks_quit, NULL, NULL);
+      uv_thread_join (&uvsocks->thread);
+    }
+
+  uv_close ((uv_handle_t *) &uvsocks->async, NULL);
+
+  if (uvsocks->self_loop)
+    {
+      uv_loop_close (uvsocks->loop);
+      free (uvsocks->loop);
+    }
+
+  free (uvsocks->tunnels);
+  free (uvsocks);
+}
+
+static void
 uvsocks_free_handle_with_session (uv_handle_t *handle)
 {
   UvSocksSessionLink *link = handle->data;
   UvSocksSession *session = link->session;
+  UvSocksTunnel  *tunnel = session->tunnel;
 
   free (handle);
   link->read_tcp = NULL;
@@ -357,18 +396,22 @@ uvsocks_free_handle_with_session (uv_handle_t *handle)
   if (!session->local.read_tcp &&
       !session->socks.read_tcp)
     {
-      UvSocksTunnel  *tunnel = session->tunnel;
-
       tunnel->n_sessions--;
       tunnel->sessions[session->id] = NULL;
       free (session);
     }
+
+  uvsocks_free_real (tunnel->uvsocks);
 }
 
 static void
-uvsocks_free_handle (uv_handle_t *handle)
+uvsocks_free_handle_with_tunnel (uv_handle_t *handle)
 {
+  UvSocksTunnel  *tunnel = handle->data;
+
   free (handle);
+
+  uvsocks_free_real (tunnel->uvsocks);
 }
 
 static void
@@ -380,13 +423,18 @@ uvsocks_remove_session (UvSocksTunnel  *tunnel,
 
   if (session->socks.read_tcp &&
       !uv_is_closing ((const uv_handle_t *)session->socks.read_tcp))
-    uv_close ((uv_handle_t *) session->socks.read_tcp,
-              uvsocks_free_handle_with_session);
-
+    {
+      uv_close ((uv_handle_t *) session->socks.read_tcp,
+                uvsocks_free_handle_with_session);
+      tunnel->uvsocks->close_cb_called++;
+    }
   if (session->local.read_tcp &&
       !uv_is_closing ((const uv_handle_t *)session->local.read_tcp))
-    uv_close ((uv_handle_t *) session->local.read_tcp,
-              uvsocks_free_handle_with_session);
+    {
+      uv_close ((uv_handle_t *) session->local.read_tcp,
+                uvsocks_free_handle_with_session);
+      tunnel->uvsocks->close_cb_called++;
+    }
 }
 
 static void
@@ -401,21 +449,16 @@ uvsocks_free_tunnel (UvSocks *uvsocks)
   for (t = 0; t < uvsocks->n_tunnels; t++)
     {
       if (uvsocks->tunnels[t].listen_tcp)
-        uv_close ((uv_handle_t *) uvsocks->tunnels[t].listen_tcp,
-                  uvsocks_free_handle);
+        {
+          uv_close ((uv_handle_t *) uvsocks->tunnels[t].listen_tcp,
+                    uvsocks_free_handle_with_tunnel);
+          uvsocks->close_cb_called++;
+        }
 
       for (s = 0; s < uvsocks->tunnels[t].n_sessions; s++)
         uvsocks_remove_session (&uvsocks->tunnels[t],
                                 uvsocks->tunnels[t].sessions[s]);
     }
-}
-
-static void
-uvsocks_quit (UvSocks  *uvsocks,
-              void     *data)
-{
-  if (uvsocks->self_loop)
-    uv_stop (uvsocks->loop);
 }
 
 void
@@ -424,22 +467,10 @@ uvsocks_free (UvSocks *uvsocks)
   if (!uvsocks)
     return;
 
+  uvsocks->close_cb_called = 0;
+  uvsocks->exit = 1;
+
   uvsocks_free_tunnel (uvsocks);
-  uvsocks_send_async (uvsocks, uvsocks_quit, NULL, NULL);
-
-  if (uvsocks->self_loop)
-    uv_thread_join (&uvsocks->thread);
-
-  uv_close ((uv_handle_t *) &uvsocks->async, NULL);
-
-  if (uvsocks->self_loop)
-    {
-      uv_loop_close (uvsocks->loop);
-      free (uvsocks->loop);
-    }
-
-  free (uvsocks->tunnels);
-  free (uvsocks);
 }
 
 static void
@@ -1043,7 +1074,8 @@ fail:
   uvsocks_set_status (tunnel, status);
 
   if (tunnel->listen_tcp)
-    uv_close ((uv_handle_t *) tunnel->listen_tcp, uvsocks_free_handle);
+    uv_close ((uv_handle_t *) tunnel->listen_tcp,
+              uvsocks_free_handle_with_tunnel);
 
   return;
 }
