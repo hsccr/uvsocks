@@ -689,6 +689,9 @@ uvsocks_connected (uv_connect_t *connect,
       char buf[100];
       size_t buf_size;
 
+      if (uvsocks->exit)
+        return;
+
       buf_size = 0;
       buf[buf_size++] = 0x05;
       buf[buf_size++] = 0x01;
