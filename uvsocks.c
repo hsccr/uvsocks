@@ -87,7 +87,7 @@ typedef enum _UvSocksStage
   UVSOCKS_STAGE_TUNNEL              = 0x05,
 } UvSocksStage;
 
-#define UVSOCKS_SESSION_MAX           5
+#define UVSOCKS_SESSION_MAX           16
 
 typedef struct _UvSocksTunnel UvSocksTunnel;
 typedef struct _UvSocksSession UvSocksSession;
@@ -315,6 +315,7 @@ uvsocks_new (void              *uv_loop,
   return uvsocks;
 
 fail_parameter:
+
   if (callback_func)
     callback_func (NULL,
                    UVSOCKS_ERROR_PARAMETERS,
@@ -643,10 +644,10 @@ uvsocks_dns_resolve (UvSocks              *uvsocks,
                            s,
                            &hints);
   if (status)
-  {
-    uvsocks_set_status (tunnel, UVSOCKS_ERROR_DNS_ADDRINFO);
-    uvsocks_remove_session (tunnel, session);
-  }
+    {
+      uvsocks_set_status (tunnel, UVSOCKS_ERROR_DNS_ADDRINFO);
+      uvsocks_remove_session (tunnel, session);
+    }
 }
 
 static void
@@ -923,7 +924,6 @@ uvsocks_read (uv_stream_t    *stream,
                 uvsocks_remove_session (tunnel, session);
                 return;
               }
-
             pkt_len = 10;
 
             if (session->stage == UVSOCKS_STAGE_ESTABLISH &&
