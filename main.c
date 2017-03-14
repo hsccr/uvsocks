@@ -372,7 +372,7 @@ main (int    argc,
   {
     int i;
 
-    for (i = 0; i < 3000; i++)
+    for (i = 0; i < 5000; i++)
       {
         uvsocks_free (main_uvsocks);
 
