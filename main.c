@@ -369,28 +369,29 @@ main (int    argc,
 
   uvsocks_run (main_uvsocks);
 
-  {
-    int i;
+  if (0)
+    {
+      int i;
 
-    for (i = 0; i < 5000; i++)
-      {
-        uvsocks_free (main_uvsocks);
+      for (i = 0; i < 5000; i++)
+        {
+          uvsocks_free (main_uvsocks);
 
-        main_uvsocks = uvsocks_new (NULL,
-                                    main_host,
-                                    main_port,
-                                    main_user,
-                                    main_password,
-                                    main_n_params,
-                                    main_params,
-                                    main_uvsocks_notify,
-                                    NULL);
-        if (!main_uvsocks)
-          goto fail;
+          main_uvsocks = uvsocks_new (NULL,
+                                      main_host,
+                                      main_port,
+                                      main_user,
+                                      main_password,
+                                      main_n_params,
+                                      main_params,
+                                      main_uvsocks_notify,
+                                      NULL);
+          if (!main_uvsocks)
+            goto fail;
 
-        uvsocks_run (main_uvsocks);
-      }
-  }
+          uvsocks_run (main_uvsocks);
+        }
+    }
 
   uv_run (main_loop, UV_RUN_DEFAULT);
 
