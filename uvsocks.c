@@ -495,6 +495,7 @@ uvsocks_close_handle_listen (uv_handle_t *handle)
   UvSocks *socks = tunnel->socks;
 
   free (handle);
+  tunnel->listen_tcp = NULL;
 
   if (socks->close)
     uvsocks_free_check (socks);
@@ -1076,6 +1077,14 @@ uvsocks_local_new_connection (uv_stream_t *stream,
 }
 
 static void
+uvsocks_async_close_handle_listen (UvSocks       *socks,
+                                   void          *data)
+{
+  uv_close ((uv_handle_t *) data,
+            uvsocks_close_handle_listen);
+}
+
+static void
 uvsocks_start_local_server (UvSocks       *socks,
                             UvSocksTunnel *tunnel)
 {
@@ -1092,14 +1101,13 @@ uvsocks_start_local_server (UvSocks       *socks,
 
   uv_ip4_addr (tunnel->param.listen_host, tunnel->param.listen_port, &addr);
   uv_tcp_init (socks->loop, tunnel->listen_tcp);
+  tunnel->listen_tcp->data = tunnel;
   r = uv_tcp_bind (tunnel->listen_tcp, (const struct sockaddr *) &addr, 0);
   if (r < 0)
     {
       status = UVSOCKS_ERROR_TCP_BIND;
       goto fail;
     }
-
-  tunnel->listen_tcp->data = tunnel;
 
   {
     struct sockaddr_in name;
@@ -1124,13 +1132,10 @@ uvsocks_start_local_server (UvSocks       *socks,
 fail:
 
   uvsocks_set_status (tunnel, status);
-
-  if (tunnel->listen_tcp)
-    uv_close ((uv_handle_t *) tunnel->listen_tcp,
-              uvsocks_close_handle_listen);
-
-  tunnel->listen_tcp = NULL;
-
+  //uv_close ((uv_handle_t *) tunnel->listen_tcp,
+  //          uvsocks_close_handle_listen);
+  uvsocks_send_async (socks, uvsocks_async_close_handle_listen,  tunnel->listen_tcp, NULL);
+  //tunnel->listen_tcp = NULL;
   return;
 }
 
